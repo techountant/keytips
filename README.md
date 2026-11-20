@@ -1,6 +1,10 @@
 ### Keytips
 
-Tap Alt and type: fixed keyboard keys for every button, field and page in Desk
+Tap Alt and type: fixed keyboard keys for every button, field and page in Frappe Desk. Like
+Excel's key tips, with keys that stay put so people work without looking, the way they did in
+Tally.
+
+![Tap Alt: every field gets a key. C goes to Customer, I to the first empty item row.](docs/keytips-demo.gif)
 
 ### How it works
 
@@ -42,7 +46,7 @@ You can install this app using the [bench](https://github.com/frappe/bench) CLI:
 
 ```bash
 cd $PATH_TO_YOUR_BENCH
-bench get-app $URL_OF_THIS_REPO --branch develop
+bench get-app https://github.com/techountant/keytips
 bench install-app keytips
 ```
 
