@@ -85,7 +85,12 @@ function load_form_keys() {
 // A table's key lands in its first empty row, ready to type, or adds a row when none is empty.
 // "Empty": the first column shown in the grid has no value.
 function into_table(frm, field) {
-	frm.scroll_to_field(field.df.fieldname);
+	// not frm.scroll_to_field: for a table it focuses every input in the grid in turn, and the
+	// cursor visibly runs along the row (item, uom, qty, rate...) before settling
+	const wrapper = field.$wrapper && field.$wrapper[0];
+	const tab = (frm.layout.tabs || []).find((t) => t.wrapper && wrapper && t.wrapper[0] && t.wrapper[0].contains(wrapper));
+	if (tab && !tab.is_active?.()) tab.set_active();
+	if (wrapper) wrapper.scrollIntoView({ block: "center" });
 	const grid = field.grid;
 	if (!grid) return;
 	const first = (grid.visible_columns || []).map((c) => c[0] && c[0].fieldname).find(Boolean);
@@ -100,8 +105,15 @@ function into_table(frm, field) {
 		const cell = row.row[0].querySelector(`.grid-static-col[data-fieldname="${first}"]`) || row.row[0].querySelector(".grid-static-col");
 		if (cell) cell.click();
 		setTimeout(() => {
+			// the click may have opened something of the site's own (omran's Find Item box, a
+			// dialog) that took the cursor: leave it there, or the grid row and that box fight
+			// over it and the cursor runs along the row to Rate
+			const active = document.activeElement;
+			const elsewhere =
+				active && active !== document.body && !row.row[0].contains(active) && active.matches("input, textarea, select, [contenteditable]");
+			if (elsewhere || document.querySelector(".modal.show")) return;
 			const input = row.row[0].querySelector(`[data-fieldname="${first}"] input, [data-fieldname="${first}"] select`);
-			if (input) input.focus();
+			if (input && active !== input) input.focus();
 		}, 120);
 	}, 80);
 }
