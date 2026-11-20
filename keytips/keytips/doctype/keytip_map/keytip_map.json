@@ -1,0 +1,41 @@
+{
+ "doctype": "DocType",
+ "name": "Keytip Map",
+ "module": "Keytips",
+ "autoname": "field:page",
+ "engine": "InnoDB",
+ "modified": "2026-11-20 12:00:00.000000",
+ "owner": "Administrator",
+ "creation": "2026-11-19 12:00:00.000000",
+ "description": "The keys for one form, list or workspace: tap Alt, then type a key. Filled in on its own the first time someone opens the page; change any key here and everyone gets it. Delete a row to have it assigned again.",
+ "field_order": [
+  "page",
+  "keys"
+ ],
+ "fields": [
+  {
+   "fieldname": "page",
+   "fieldtype": "Data",
+   "label": "Page",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "description": "A doctype for its form (Sales Invoice), list:Sales Invoice for its list, workspace:Billing for a workspace"
+  },
+  {
+   "fieldname": "keys",
+   "fieldtype": "Table",
+   "options": "Keytip",
+   "label": "Keys"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
+ ]
+}

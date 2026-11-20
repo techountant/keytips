@@ -1,0 +1,45 @@
+{
+ "doctype": "DocType",
+ "name": "Keytip",
+ "module": "Keytips",
+ "istable": 1,
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "modified": "2026-11-20 12:00:00.000000",
+ "owner": "Administrator",
+ "creation": "2026-11-19 12:00:00.000000",
+ "field_order": [
+  "key",
+  "fieldname",
+  "label"
+ ],
+ "fields": [
+  {
+   "fieldname": "key",
+   "fieldtype": "Data",
+   "label": "Key",
+   "reqd": 1,
+   "in_list_view": 1,
+   "length": 2,
+   "columns": 1,
+   "description": "One or two letters or digits; typed after tapping Alt"
+  },
+  {
+   "fieldname": "fieldname",
+   "fieldtype": "Data",
+   "label": "Field or Item",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "label",
+   "fieldtype": "Data",
+   "label": "Label",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 4
+  }
+ ],
+ "permissions": []
+}
