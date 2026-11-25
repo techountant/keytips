@@ -48,6 +48,8 @@ const TARGETS = [
 	"[data-label]",
 	".btn",
 	".list-row",
+	".shortcut-widget-box",
+	".section-head.collapsible",
 ].join(",");
 const ALPHABET = "asdfghjklqwertyuiopzxcvbnm";
 // The common ones keep the same letter on every page, so fingers learn them.
@@ -193,14 +195,18 @@ function load_page_keys() {
 	asked[page.id] = true;
 	frappe
 		.xcall("keytips.api.get_page_keys", { page: page.id, items: items.map((it) => [it.id, it.label]) })
-		.then((k) => (page_keys[page.id] = k || {}))
+		.then((k) => {
+			page_keys[page.id] = k || {};
+			// tips already up without these keys (Alt came first): draw them again with them
+			if (layer && !editing) attempt("keytips", "show", () => (hide(), show()));
+		})
 		.finally(() => delete asked[page.id]);
 }
 function page_targets(page) {
 	const keys = page_keys[page.id] || {};
 	return page_items(page)
 		.filter((it) => it.id in keys)
-		.map((it) => ({ el: it.el, code: keys[it.id], go: it.go, r: visible(it.el) }));
+		.map((it) => ({ el: it.el, code: keys[it.id], go: it.go, r: visible(it.el), map: page.id, id: it.id, label: it.label }));
 }
 
 // A report's grid: one key lands on its first row; arrows move (Desk's grid does that), Enter
@@ -258,7 +264,17 @@ function form_targets(frm) {
 		const field = frm.fields_dict[fieldname];
 		let el;
 		let go;
-		if (tab) {
+		if (field && field.df && field.df.fieldtype === "Section Break") {
+			// a collapsible section: open it and bring it into view
+			if (!field.head || !field.head[0] || field.df.hidden || field.wrapper.hasClass("hide-control")) continue;
+			el = field.head[0];
+			go = () => {
+				const tab = (frm.layout.tabs || []).find((t) => t.wrapper && t.wrapper[0] && t.wrapper[0].contains(el));
+				if (tab && !tab.is_active?.()) tab.set_active();
+				if (field.is_collapsed && field.is_collapsed()) field.collapse(false);
+				el.scrollIntoView({ block: "start", behavior: "smooth" });
+			};
+		} else if (tab) {
 			if (!tab.tab_link || tab.tab_link.hasClass("hide")) continue;
 			el = tab.tab_link[0].querySelector(".nav-link") || tab.tab_link[0];
 			go = () => tab.set_active();
@@ -268,7 +284,7 @@ function form_targets(frm) {
 			el = field.$wrapper[0];
 			go = field.df.fieldtype === "Table" ? () => into_table(frm, field) : () => frm.scroll_to_field(fieldname);
 		}
-		out.push({ el, code, go, r: el && visible(el.querySelector(".control-label, label, .grid-heading-row") || el) });
+		out.push({ el, code, go, map: frm.doctype, id: fieldname, label: (tab ? tab.df : field.df).label || fieldname, r: el && visible(el.querySelector(".control-label, label, .grid-heading-row") || el) });
 	}
 	return out;
 }
@@ -277,6 +293,45 @@ let armed = false;
 let layer = null;
 let tips = [];
 let typed = "";
+// edit mode: a System Manager taps = while the tips are up, then picks a key (type it or click it)
+// to give that item another one; only the stored keys (form fields, list/workspace items) change
+let editing = false;
+const can_edit = () => frappe.user && frappe.user.has_role && frappe.user.has_role("System Manager");
+function start_editing() {
+	editing = true;
+	layer.classList.add("tt-edit");
+	const note = document.createElement("div");
+	note.className = "tt-edit-note";
+	note.textContent = __("Edit keys: type or click a key to change it. Esc to stop.");
+	layer.appendChild(note);
+	for (const t of tips) {
+		if (!t.tip) continue;
+		if (!t.map) {
+			t.tip.dataset.fixed = 1;
+			continue;
+		}
+		t.tip.addEventListener("click", (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			attempt("keytips", "edit", () => edit_tip(t));
+		});
+	}
+}
+function edit_tip(t) {
+	hide();
+	frappe.prompt(
+		{ fieldname: "key", fieldtype: "Data", label: __("Key for {0}", [t.label || t.id]), default: t.code.toUpperCase(), reqd: 1 },
+		(v) =>
+			frappe
+				.xcall("keytips.api.set_key", { page: t.map, item: t.id, key: v.key })
+				.then((keys) => {
+					if (t.map.includes(":")) page_keys[t.map] = keys || {};
+					else form_keys[t.map] = keys || {};
+					frappe.show_alert({ message: __("{0} is now {1}", [t.label || t.id, v.key.toUpperCase()]), indicator: "green" });
+				}),
+		__("Change key")
+	);
+}
 
 function visible(el) {
 	const r = el.getBoundingClientRect();
@@ -342,8 +397,10 @@ function show() {
 	const fixed = [];
 	const frm = current_form();
 	if (frm && form_keys[frm.doctype]) {
-		for (let i = items.length - 1; i >= 0; i--) if (items[i].el.closest(".form-layout")) items.splice(i, 1);
+		for (let i = items.length - 1; i >= 0; i--) if (items[i].el.closest(".form-layout") && !items[i].el.matches(".section-head.collapsible")) items.splice(i, 1);
 		fixed.push(...form_targets(frm));
+		// a section with its own stored key: no second, passing one
+		for (let i = items.length - 1; i >= 0; i--) if (fixed.some((f) => f.el === items[i].el)) items.splice(i, 1);
 	}
 	const page = !frm && current_page();
 	let page_codes = [];
@@ -392,13 +449,14 @@ function show() {
 	layer = document.createElement("div");
 	layer.className = "tt-keytips";
 	tips = items.map((it, i) => {
-		if (!it.r) return { code: codes[i], el: it.el, go: it.go, tip: null };
+		const base = { code: codes[i], el: it.el, go: it.go, map: it.map, id: it.id, label: it.label };
+		if (!it.r) return { ...base, tip: null };
 		const tip = document.createElement("span");
 		tip.textContent = codes[i].toUpperCase();
 		tip.style.left = `${Math.max(it.r.left, 0)}px`;
 		tip.style.top = `${Math.max(it.r.top, 0)}px`;
 		layer.appendChild(tip);
-		return { code: codes[i], el: it.el, go: it.go, tip };
+		return { ...base, tip };
 	});
 	document.body.appendChild(layer);
 	typed = "";
@@ -409,6 +467,7 @@ function hide() {
 	layer = null;
 	tips = [];
 	typed = "";
+	editing = false;
 }
 
 function activate(el) {
@@ -431,6 +490,7 @@ function on_key(e) {
 		e.preventDefault();
 		e.stopImmediatePropagation();
 		if (e.key === "Escape" || e.key === "Alt") return hide();
+		if (e.key === "=" && !editing && can_edit()) return start_editing();
 		// Alt then Down: into the rows of a list or report; Desk's own arrows take it from there
 		if (e.key === "ArrowDown") {
 			hide();
@@ -439,9 +499,10 @@ function on_key(e) {
 		if (e.key === "Backspace") typed = typed.slice(0, -1);
 		else if (e.key.length === 1 && /[a-z0-9]/i.test(e.key)) typed += e.key.toLowerCase();
 		else return;
-		const left = tips.filter((t) => t.code.startsWith(typed));
+		const left = tips.filter((t) => t.code.startsWith(typed) && (!editing || t.map));
 		if (!left.length) return hide();
 		const exact = left.find((t) => t.code === typed);
+		if (exact && left.length === 1 && editing) return edit_tip(exact);
 		if (exact && left.length === 1) return exact.go ? (hide(), exact.go()) : activate(exact.el);
 		for (const t of tips) {
 			if (!t.tip) continue;
@@ -472,6 +533,13 @@ const STYLE = `
 }
 /* Desk's own arrow keys move through list rows: show where they are */
 .list-row-container:focus-visible, .list-row-container:focus { outline: 2px solid var(--primary, #2f6df2); outline-offset: -2px; border-radius: 8px; }
+.tt-keytips.tt-edit span { pointer-events: auto; cursor: pointer; outline: 2px dashed var(--yellow-500, #e6a700); }
+.tt-keytips.tt-edit span[data-fixed] { pointer-events: none; opacity: .35; outline: none; }
+.tt-edit-note {
+	position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+	padding: 8px 14px; border-radius: 8px; font: 500 13px/1.3 var(--font-stack, system-ui), sans-serif;
+	background: var(--yellow-500, #e6a700); color: #111; box-shadow: 0 2px 10px rgba(0,0,0,.3);
+}
 .tt-keytips span[data-typed="1"] { background: var(--primary, #2f6df2); }
 `;
 
@@ -484,7 +552,15 @@ function setup_keytips() {
 	addEventListener("keydown", (e) => attempt("keytips", "keydown", () => on_key(e)), true);
 	addEventListener("keyup", (e) => attempt("keytips", "keyup", () => on_keyup(e)), true);
 	addEventListener("keydown", (e) => attempt("keytips", "grid key", () => on_grid_key(e)), true);
-	addEventListener("mousedown", () => ((armed = false), hide()), true);
+	addEventListener(
+		"mousedown",
+		(e) => {
+			armed = false;
+			if (editing && layer && layer.contains(e.target)) return;
+			hide();
+		},
+		true
+	);
 	addEventListener("scroll", hide, true);
 	addEventListener("resize", hide);
 	addEventListener("blur", () => ((armed = false), hide()));

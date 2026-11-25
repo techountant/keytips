@@ -36,9 +36,14 @@ SKIP = {
 
 def candidates(meta):
 	"""The fields worth a key, the important ones first (required, bold, shown in the list or the
-	filters, tables), then the rest, each in form order. Tabs count as fields."""
+	filters, tables), then the rest, each in form order. Tabs and collapsible sections count as fields."""
 	first, rest = [], []
 	for df in meta.fields:
+		# a collapsible section gets a key that opens it: its fields are hidden till then
+		if df.fieldtype == "Section Break":
+			if df.collapsible and df.label and not df.hidden:
+				rest.append((df.fieldname, df.label))
+			continue
 		if df.fieldtype in SKIP or df.hidden or not df.label:
 			continue
 		if df.read_only and df.fieldtype not in ("Tab Break", "Table"):
@@ -163,3 +168,31 @@ def get_page_keys(page: str, items: str | list):
 		if isinstance(pair, (list, tuple)) and len(pair) == 2 and pair[0] and pair[1]:
 			clean.append((str(pair[0])[:140], str(pair[1])[:140]))
 	return keys_for(page[:140], clean, dict(clean))
+
+
+@frappe.whitelist()
+def set_key(page: str, item: str, key: str):
+	"""Change one item's key (edit mode, System Manager only). page: a doctype for a form's map, or
+	list:/report:/workspace: for a page's. Keeps the map prefix-free. Returns the map {id: key}."""
+	frappe.only_for("System Manager")
+	key = (key or "").strip().lower()
+	if not (1 <= len(key) <= 2 and key[0] in string.ascii_lowercase and all(c in SECOND for c in key)):
+		frappe.throw("A key is one or two characters: a letter, then a letter or digit.")
+	if len(key) == 1 and key in RESERVED:
+		frappe.throw(f"{key.upper()} is kept for the page's own buttons ({''.join(sorted(RESERVED)).upper()}).")
+	name = frappe.db.get_value("Keytip Map", {"page": page[:140]})
+	if not name:
+		frappe.throw("No keys for this page yet.")
+	doc = frappe.get_doc("Keytip Map", name)
+	row = next((r for r in doc.keys if r.fieldname == item), None)
+	if not row:
+		frappe.throw("That item has no key yet.")
+	for other in doc.keys:
+		if other is row or not other.key:
+			continue
+		if other.key == key or other.key.startswith(key) or key.startswith(other.key):
+			frappe.throw(f"{key.upper()} clashes with {other.key.upper()} ({other.label or other.fieldname}).")
+	row.key = key
+	doc.flags.ignore_permissions = True
+	doc.save()
+	return {r.fieldname: r.key for r in doc.keys}
