@@ -58,7 +58,8 @@ const FIXED = [
 	["a", ".page-head .primary-action, .page-head .page-actions .btn-primary"],
 	["b", "header.navbar .notifications-icon"],
 	["t", "header.navbar .ts-badge-link"],
-	["h", "header.navbar .dropdown-help > .nav-link, header.navbar .dropdown-help > button"],
+	// the logo goes home; Help gets a spare letter like any other button
+	["h", "header.navbar .navbar-brand, header.navbar .navbar-home"],
 	["u", "header.navbar .dropdown-navbar-user > .nav-link, header.navbar .dropdown-navbar-user > button"],
 	["v", ".page-head button:has(use[href='#icon-list']), .page-head button:has(use[href='#icon-table']), .page-head button:has(use[href='#icon-kanban'])"],
 	["r", ".page-head button:has(use[href*='reload']), .page-head button:has(use[href='#icon-refresh'])"],
