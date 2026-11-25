@@ -490,7 +490,13 @@ function on_key(e) {
 		e.preventDefault();
 		e.stopImmediatePropagation();
 		if (e.key === "Escape" || e.key === "Alt") return hide();
-		if (e.key === "=" && !editing && can_edit()) return start_editing();
+		// = or . (by character or by the physical key, for any keyboard layout)
+		const edit_key = ["=", "+", "."].includes(e.key) || ["Equal", "Period", "NumpadAdd", "NumpadDecimal"].includes(e.code);
+		if (edit_key && !editing) {
+			if (can_edit()) return start_editing();
+			frappe.show_alert({ message: __("Only a System Manager can change keys"), indicator: "orange" });
+			return hide();
+		}
 		// Alt then Down: into the rows of a list or report; Desk's own arrows take it from there
 		if (e.key === "ArrowDown") {
 			hide();
