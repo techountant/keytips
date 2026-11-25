@@ -296,7 +296,7 @@ let typed = "";
 // edit mode: a System Manager taps = while the tips are up, then picks a key (type it or click it)
 // to give that item another one; only the stored keys (form fields, list/workspace items) change
 let editing = false;
-const can_edit = () => frappe.user && frappe.user.has_role && frappe.user.has_role("System Manager");
+const can_edit = () => (frappe.user_roles || []).includes("System Manager");
 function start_editing() {
 	editing = true;
 	layer.classList.add("tt-edit");
