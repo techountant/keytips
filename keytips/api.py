@@ -16,7 +16,7 @@ import string
 
 import frappe
 
-RESERVED = set("sabthuvrmp")
+RESERVED = set("santhuvrmp")
 FREE = [c for c in string.ascii_lowercase if c not in RESERVED]
 SECOND = list(string.ascii_lowercase + string.digits)
 MAX_SINGLES = 8
@@ -180,8 +180,11 @@ def set_key(page: str, item: str, key: str, swap: int = 0):
 	key = (key or "").strip().lower()
 	if not (1 <= len(key) <= 2 and key[0] in string.ascii_lowercase and all(c in SECOND for c in key)):
 		frappe.throw("A key is one or two characters: a letter, then a letter or digit.")
-	if len(key) == 1 and key in RESERVED:
-		frappe.throw(f"{key.upper()} is kept for the page's own buttons ({''.join(sorted(RESERVED)).upper()}).")
+	if key[0] in RESERVED:
+		frappe.throw(
+			f"Keys can't start with {key[0].upper()}: it is kept for the page's own buttons"
+			f" ({''.join(sorted(RESERVED)).upper()})."
+		)
 	name = frappe.db.get_value("Keytip Map", {"page": page[:140]})
 	if not name:
 		frappe.throw("No keys for this page yet.")

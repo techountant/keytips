@@ -56,7 +56,7 @@ const ALPHABET = "asdfghjklqwertyuiopzxcvbnm";
 const FIXED = [
 	["s", "header.navbar .search-bar input"],
 	["a", ".page-head .primary-action, .page-head .page-actions .btn-primary"],
-	["b", "header.navbar .notifications-icon"],
+	["n", "header.navbar .notifications-icon"],
 	["t", "header.navbar .ts-badge-link"],
 	// the logo goes home; Help gets a spare letter like any other button
 	["h", "header.navbar .navbar-brand, header.navbar .navbar-home"],
