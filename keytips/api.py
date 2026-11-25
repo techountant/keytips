@@ -171,9 +171,11 @@ def get_page_keys(page: str, items: str | list):
 
 
 @frappe.whitelist()
-def set_key(page: str, item: str, key: str):
+def set_key(page: str, item: str, key: str, swap: int = 0):
 	"""Change one item's key (edit mode, System Manager only). page: a doctype for a form's map, or
-	list:/report:/workspace: for a page's. Keeps the map prefix-free. Returns the map {id: key}."""
+	list:/report:/workspace: for a page's. Keeps the map prefix-free. Returns {"keys": {id: key}}.
+	A key another item already has exactly: {"taken": {...}} and nothing saved, unless swap, when
+	that item gets this one's old key. A key that only overlaps another (I and IE) is refused."""
 	frappe.only_for("System Manager")
 	key = (key or "").strip().lower()
 	if not (1 <= len(key) <= 2 and key[0] in string.ascii_lowercase and all(c in SECOND for c in key)):
@@ -187,12 +189,25 @@ def set_key(page: str, item: str, key: str):
 	row = next((r for r in doc.keys if r.fieldname == item), None)
 	if not row:
 		frappe.throw("That item has no key yet.")
+	if row.key == key:
+		return {"keys": {r.fieldname: r.key for r in doc.keys}}
+	same = None
 	for other in doc.keys:
 		if other is row or not other.key:
 			continue
-		if other.key == key or other.key.startswith(key) or key.startswith(other.key):
-			frappe.throw(f"{key.upper()} clashes with {other.key.upper()} ({other.label or other.fieldname}).")
+		if other.key == key:
+			same = other
+		elif other.key.startswith(key) or key.startswith(other.key):
+			frappe.throw(
+				f"{key.upper()} can't be used: it overlaps {other.key.upper()} ({other.label or other.fieldname}),"
+				" and typing one would stop at the other. Pick a key that starts with another letter."
+			)
+	if same and not frappe.utils.cint(swap):
+		return {"taken": {"id": same.fieldname, "label": same.label or same.fieldname, "key": same.key, "old": row.key}}
+	if same:
+		# the two keys were apart before, so trading them keeps every key apart
+		same.key = row.key
 	row.key = key
 	doc.flags.ignore_permissions = True
 	doc.save()
-	return {r.fieldname: r.key for r in doc.keys}
+	return {"keys": {r.fieldname: r.key for r in doc.keys}}

@@ -319,16 +319,41 @@ function start_editing() {
 }
 function edit_tip(t) {
 	hide();
+	const name = t.label || t.id;
+	const saved = (r, msg) => {
+		if (t.map.includes(":")) page_keys[t.map] = r.keys || {};
+		else form_keys[t.map] = r.keys || {};
+		frappe.show_alert({ message: msg, indicator: "green" });
+	};
+	const save = (key, swap) =>
+		frappe.xcall("keytips.api.set_key", { page: t.map, item: t.id, key, swap: swap ? 1 : 0 }).then((r) => {
+			if (!r) return;
+			if (r.taken) {
+				const K = key.toUpperCase();
+				const O = r.taken.old.toUpperCase();
+				frappe.confirm(
+					__("{0} is already {1}'s key. Swap them? {2} becomes {0}, {1} becomes {3}.", [
+						`<b>${K}</b>`,
+						frappe.utils.escape_html(r.taken.label),
+						frappe.utils.escape_html(name),
+						`<b>${O}</b>`,
+					]),
+					() => save(key, true).then(() => {})
+				);
+				return;
+			}
+			saved(r, swap ? __("Swapped: {0} is now {1}", [name, key.toUpperCase()]) : __("{0} is now {1}", [name, key.toUpperCase()]));
+		});
 	frappe.prompt(
-		{ fieldname: "key", fieldtype: "Data", label: __("Key for {0}", [t.label || t.id]), default: t.code.toUpperCase(), reqd: 1 },
-		(v) =>
-			frappe
-				.xcall("keytips.api.set_key", { page: t.map, item: t.id, key: v.key })
-				.then((keys) => {
-					if (t.map.includes(":")) page_keys[t.map] = keys || {};
-					else form_keys[t.map] = keys || {};
-					frappe.show_alert({ message: __("{0} is now {1}", [t.label || t.id, v.key.toUpperCase()]), indicator: "green" });
-				}),
+		{
+			fieldname: "key",
+			fieldtype: "Data",
+			label: __("Key for {0}", [name]),
+			default: t.code.toUpperCase(),
+			reqd: 1,
+			description: __("One or two characters, a letter first. If another item has it, you can swap."),
+		},
+		(v) => save(v.key.trim().toLowerCase(), false),
 		__("Change key")
 	);
 }
